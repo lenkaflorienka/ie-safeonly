@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { motion } from 'framer-motion'
+import { motion, useReducedMotion } from 'framer-motion'
 import { useNavigate } from 'react-router-dom'
 import { chapters } from '../data/locations'
 import { smoothPath } from '../lib/path'
@@ -9,6 +9,7 @@ import { PageShell } from '../components/PageShell'
 export function Hub() {
   const navigate = useNavigate()
   const pathD = useMemo(() => smoothPath(chapters.map((c) => c.coordinates)), [])
+  const prefersReducedMotion = useReducedMotion()
 
   return (
     <PageShell title="the map" subtitle="every place holds a memory — tap one to open it">
@@ -16,8 +17,19 @@ export function Hub() {
         <svg
           viewBox="0 0 100 100"
           preserveAspectRatio="none"
-          className="absolute inset-0 h-full w-full"
+          className="absolute inset-0 h-full w-full overflow-visible"
         >
+          <motion.path
+            d={pathD}
+            fill="none"
+            stroke="var(--color-clay)"
+            strokeWidth="1.4"
+            strokeLinecap="round"
+            className="blur-[3px]"
+            initial={{ pathLength: 0, opacity: 0 }}
+            animate={{ pathLength: 1, opacity: 0.18 }}
+            transition={{ duration: 2.2, ease: 'easeInOut' }}
+          />
           <motion.path
             d={pathD}
             fill="none"
@@ -25,9 +37,19 @@ export function Hub() {
             strokeWidth="0.35"
             strokeDasharray="1.2 1.4"
             strokeLinecap="round"
-            initial={{ pathLength: 0, opacity: 0 }}
-            animate={{ pathLength: 1, opacity: 0.55 }}
-            transition={{ duration: 2.2, ease: 'easeInOut' }}
+            initial={{ pathLength: 0, opacity: 0, strokeDashoffset: 0 }}
+            animate={{
+              pathLength: 1,
+              opacity: 0.55,
+              strokeDashoffset: prefersReducedMotion ? 0 : [0, -26],
+            }}
+            transition={{
+              pathLength: { duration: 2.2, ease: 'easeInOut' },
+              opacity: { duration: 2.2, ease: 'easeInOut' },
+              strokeDashoffset: prefersReducedMotion
+                ? { duration: 0 }
+                : { duration: 14, ease: 'linear', repeat: Infinity, delay: 2.2 },
+            }}
           />
         </svg>
 
@@ -43,6 +65,20 @@ export function Hub() {
               style={{ left: `${chapter.coordinates.x}%`, top: `${chapter.coordinates.y}%` }}
               className="group absolute -translate-x-1/2 -translate-y-1/2 focus-visible:outline-none"
             >
+              {!prefersReducedMotion && (
+                <motion.span
+                  aria-hidden
+                  className="absolute left-1/2 top-1/2 -z-10 h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full sm:h-[18px] sm:w-[18px]"
+                  style={{ background: style.accent }}
+                  animate={{ scale: [1, 2.4, 1], opacity: [0.45, 0, 0.45] }}
+                  transition={{
+                    duration: 3.2,
+                    repeat: Infinity,
+                    ease: 'easeInOut',
+                    delay: i * 0.4,
+                  }}
+                />
+              )}
               <span
                 className="block h-4 w-4 rounded-full shadow-[0_2px_8px_rgba(43,36,31,0.45)] ring-2 ring-[var(--color-paper)] transition-transform group-hover:scale-125 sm:h-[18px] sm:w-[18px]"
                 style={{ background: style.accent }}

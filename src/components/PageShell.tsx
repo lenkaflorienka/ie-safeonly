@@ -13,8 +13,23 @@ interface PageShellProps {
 
 export function PageShell({ title, subtitle, eyebrow, mood, children }: PageShellProps) {
   const gradient = mood ? moodStyles[mood].gradient : 'from-[var(--color-cream)] via-transparent to-[var(--color-cream)]'
+  const tint = mood ? moodStyles[mood].accentSoft : 'var(--color-butter)'
   return (
-    <div className={`min-h-dvh bg-gradient-to-b ${gradient} px-4 pb-28 pt-24 sm:px-8 sm:pt-28`}>
+    <div className={`relative min-h-dvh bg-gradient-to-b ${gradient} px-4 pb-28 pt-24 sm:px-8 sm:pt-28`}>
+      <div aria-hidden className="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
+        <span
+          className="animate-drift absolute -left-24 -top-24 h-[26rem] w-[26rem] rounded-full opacity-30 blur-3xl"
+          style={{ background: tint }}
+        />
+        <span
+          className="animate-drift absolute -bottom-32 -right-16 h-[30rem] w-[30rem] rounded-full opacity-20 blur-3xl"
+          style={{ background: tint, animationDelay: '-6s' }}
+        />
+        <span
+          className="animate-drift absolute right-1/4 top-1/3 h-64 w-64 rounded-full opacity-[0.12] blur-3xl"
+          style={{ background: 'var(--color-sky)', animationDelay: '-11s' }}
+        />
+      </div>
       <motion.div
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}

@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { motion } from 'framer-motion'
+import { useState, type PointerEvent } from 'react'
+import { motion, useMotionValue, useReducedMotion, useSpring, useTransform } from 'framer-motion'
 import { useNavigate } from 'react-router-dom'
 
 const STAMPS = [
@@ -11,10 +11,43 @@ const STAMPS = [
 export function Opening() {
   const navigate = useNavigate()
   const [stage, setStage] = useState<0 | 1 | 2>(0)
+  const prefersReducedMotion = useReducedMotion()
+
+  const pointerX = useMotionValue(0)
+  const pointerY = useMotionValue(0)
+  const tiltX = useSpring(useTransform(pointerY, [-0.5, 0.5], [7, -7]), {
+    stiffness: 160,
+    damping: 18,
+  })
+  const tiltY = useSpring(useTransform(pointerX, [-0.5, 0.5], [-7, 7]), {
+    stiffness: 160,
+    damping: 18,
+  })
+
+  function handlePassPointerMove(e: PointerEvent<HTMLDivElement>) {
+    if (prefersReducedMotion) return
+    const rect = e.currentTarget.getBoundingClientRect()
+    pointerX.set((e.clientX - rect.left) / rect.width - 0.5)
+    pointerY.set((e.clientY - rect.top) / rect.height - 0.5)
+  }
+  function handlePassPointerLeave() {
+    pointerX.set(0)
+    pointerY.set(0)
+  }
 
   return (
     <div className="relative flex min-h-dvh flex-col items-center justify-center overflow-hidden bg-[var(--color-cream)] px-6 py-16 text-center">
-      <div className="pointer-events-none absolute inset-0 opacity-40 [background:radial-gradient(circle_at_15%_10%,var(--color-sky)_0%,transparent_35%),radial-gradient(circle_at_85%_85%,var(--color-blush)_0%,transparent_35%),radial-gradient(circle_at_80%_15%,var(--color-butter)_0%,transparent_30%)]" />
+      <div aria-hidden className="pointer-events-none absolute inset-0">
+        <span className="animate-drift absolute -left-20 -top-20 h-96 w-96 rounded-full bg-[var(--color-sky)] opacity-40 blur-3xl" />
+        <span
+          className="animate-drift absolute -bottom-24 -right-16 h-[28rem] w-[28rem] rounded-full bg-[var(--color-blush)] opacity-40 blur-3xl"
+          style={{ animationDelay: '-7s' }}
+        />
+        <span
+          className="animate-drift absolute right-10 top-10 h-72 w-72 rounded-full bg-[var(--color-butter)] opacity-30 blur-3xl"
+          style={{ animationDelay: '-13s' }}
+        />
+      </div>
 
       {stage === 0 && (
         <motion.button
@@ -51,6 +84,9 @@ export function Opening() {
           initial={{ opacity: 0, y: 30, rotate: -2 }}
           animate={{ opacity: 1, y: 0, rotate: 0 }}
           transition={{ duration: 0.7, ease: 'easeOut' }}
+          onPointerMove={handlePassPointerMove}
+          onPointerLeave={handlePassPointerLeave}
+          style={{ rotateX: tiltX, rotateY: tiltY, transformPerspective: 900 }}
           className="relative z-10 w-full max-w-md rounded-lg border border-black/10 bg-[var(--color-paper)] p-6 text-left shadow-[0_30px_70px_-20px_rgba(43,36,31,0.45)] sm:p-8"
         >
           <div className="mb-6 flex items-center justify-between border-b border-dashed border-black/15 pb-4">

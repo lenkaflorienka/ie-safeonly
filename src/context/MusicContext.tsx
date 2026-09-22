@@ -9,11 +9,13 @@ import {
 } from 'react'
 import { songs, songForMood } from '../data/music'
 import type { ChapterMood, Song } from '../data/types'
+import { AmbientEngine } from '../lib/ambientAudio'
 
 interface MusicContextValue {
   current: Song
   isPlaying: boolean
-  isUnavailable: boolean
+  /** True while playback is a synthesized stand-in rather than the real file. */
+  isAmbientFallback: boolean
   toggle: () => void
   next: () => void
   prev: () => void
@@ -25,12 +27,24 @@ interface MusicContextValue {
 
 const MusicContext = createContext<MusicContextValue | null>(null)
 
+/** HEAD-checks whether a real licensed file has been dropped in at `src`. */
+async function realFileExists(src: string): Promise<boolean> {
+  try {
+    const res = await fetch(src, { method: 'HEAD' })
+    return res.ok
+  } catch {
+    return false
+  }
+}
+
 export function MusicProvider({ children }: { children: ReactNode }) {
   const [index, setIndex] = useState(0)
   const [isPlaying, setIsPlaying] = useState(false)
-  const [isUnavailable, setIsUnavailable] = useState(false)
+  const [isAmbientFallback, setIsAmbientFallback] = useState(false)
   const userChose = useRef(false)
   const audioRef = useRef<HTMLAudioElement | null>(null)
+  const ambientRef = useRef<AmbientEngine | null>(null)
+  const requestId = useRef(0)
 
   const current = songs[index]
 
@@ -38,56 +52,80 @@ export function MusicProvider({ children }: { children: ReactNode }) {
     if (!audioRef.current) {
       const el = new Audio()
       el.preload = 'none'
-      el.addEventListener('error', () => setIsUnavailable(true))
       el.addEventListener('ended', () => setIsPlaying(false))
       audioRef.current = el
     }
     return audioRef.current
   }, [])
 
-  const loadAndMaybePlay = useCallback(
-    (i: number, autoplay: boolean) => {
-      const el = ensureAudio()
-      setIsUnavailable(false)
-      el.pause()
-      el.src = songs[i].src
-      if (autoplay) {
-        el.play().catch(() => setIsUnavailable(true))
-        setIsPlaying(true)
+  const ensureAmbient = useCallback(() => {
+    if (!ambientRef.current) ambientRef.current = new AmbientEngine()
+    return ambientRef.current
+  }, [])
+
+  const stopAll = useCallback(() => {
+    audioRef.current?.pause()
+    ambientRef.current?.stop()
+  }, [])
+
+  /** Starts playback for `song`, preferring a real file over the ambient fallback. */
+  const startPlayback = useCallback(
+    async (song: Song) => {
+      const myRequest = ++requestId.current
+      stopAll()
+      const hasRealFile = await realFileExists(song.src)
+      if (myRequest !== requestId.current) return // superseded by a newer request
+
+      if (hasRealFile) {
+        const el = ensureAudio()
+        el.src = song.src
+        try {
+          await el.play()
+          if (myRequest !== requestId.current) return
+          setIsAmbientFallback(false)
+          setIsPlaying(true)
+          return
+        } catch {
+          // fall through to ambient
+        }
       }
+
+      const ambient = ensureAmbient()
+      await ambient.play(song.mood)
+      if (myRequest !== requestId.current) return
+      setIsAmbientFallback(true)
+      setIsPlaying(true)
     },
-    [ensureAudio],
+    [ensureAmbient, ensureAudio, stopAll],
   )
 
   const toggle = useCallback(() => {
-    const el = ensureAudio()
     if (isPlaying) {
-      el.pause()
+      requestId.current++ // invalidate any in-flight start
+      stopAll()
       setIsPlaying(false)
       return
     }
-    if (!el.src) el.src = current.src
-    el.play().catch(() => setIsUnavailable(true))
-    setIsPlaying(true)
-  }, [current.src, ensureAudio, isPlaying])
+    void startPlayback(current)
+  }, [current, isPlaying, startPlayback, stopAll])
 
   const next = useCallback(() => {
     userChose.current = true
     setIndex((i) => {
       const n = (i + 1) % songs.length
-      loadAndMaybePlay(n, isPlaying)
+      if (isPlaying) void startPlayback(songs[n])
       return n
     })
-  }, [isPlaying, loadAndMaybePlay])
+  }, [isPlaying, startPlayback])
 
   const prev = useCallback(() => {
     userChose.current = true
     setIndex((i) => {
       const n = (i - 1 + songs.length) % songs.length
-      loadAndMaybePlay(n, isPlaying)
+      if (isPlaying) void startPlayback(songs[n])
       return n
     })
-  }, [isPlaying, loadAndMaybePlay])
+  }, [isPlaying, startPlayback])
 
   const choose = useCallback(
     (id: string) => {
@@ -95,9 +133,9 @@ export function MusicProvider({ children }: { children: ReactNode }) {
       const i = songs.findIndex((s) => s.id === id)
       if (i === -1) return
       setIndex(i)
-      loadAndMaybePlay(i, isPlaying)
+      if (isPlaying) void startPlayback(songs[i])
     },
-    [isPlaying, loadAndMaybePlay],
+    [isPlaying, startPlayback],
   )
 
   const suggestMood = useCallback(
@@ -105,17 +143,32 @@ export function MusicProvider({ children }: { children: ReactNode }) {
       if (userChose.current) return
       const song = songForMood(mood)
       const i = songs.findIndex((s) => s.id === song.id)
-      if (i !== -1 && i !== index) {
-        setIndex(i)
-        if (isPlaying) loadAndMaybePlay(i, true)
+      if (i === -1 || i === index) return
+      setIndex(i)
+      if (isPlaying) {
+        if (isAmbientFallback) {
+          // same engine instance, just crossfade — no need to re-resolve a real file
+          ensureAmbient().setMood(song.mood)
+        } else {
+          void startPlayback(song)
+        }
       }
     },
-    [index, isPlaying, loadAndMaybePlay],
+    [ensureAmbient, index, isAmbientFallback, isPlaying, startPlayback],
   )
 
   const value = useMemo(
-    () => ({ current, isPlaying, isUnavailable, toggle, next, prev, choose, suggestMood }),
-    [current, isPlaying, isUnavailable, toggle, next, prev, choose, suggestMood],
+    () => ({
+      current,
+      isPlaying,
+      isAmbientFallback,
+      toggle,
+      next,
+      prev,
+      choose,
+      suggestMood,
+    }),
+    [current, isPlaying, isAmbientFallback, toggle, next, prev, choose, suggestMood],
   )
 
   return <MusicContext.Provider value={value}>{children}</MusicContext.Provider>

@@ -26,7 +26,14 @@ export function Ending() {
   )
 
   return (
-    <div className="min-h-dvh bg-gradient-to-b from-[var(--color-cream)] via-[var(--color-cream-deep)]/60 to-[var(--color-cream)] px-4 pb-24 pt-28 sm:px-8">
+    <div className="relative min-h-dvh bg-gradient-to-b from-[var(--color-cream)] via-[var(--color-cream-deep)]/60 to-[var(--color-cream)] px-4 pb-24 pt-28 sm:px-8">
+      <div aria-hidden className="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
+        <span className="animate-drift absolute -left-20 bottom-0 h-[26rem] w-[26rem] rounded-full bg-[var(--color-meadow)] opacity-20 blur-3xl" />
+        <span
+          className="animate-drift absolute -right-16 top-0 h-96 w-96 rounded-full bg-[var(--color-butter)] opacity-25 blur-3xl"
+          style={{ animationDelay: '-9s' }}
+        />
+      </div>
       <motion.div
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}

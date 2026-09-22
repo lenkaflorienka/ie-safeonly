@@ -4,7 +4,7 @@ import { useMusic } from '../context/MusicContext'
 import { songs } from '../data/music'
 
 export function MusicPlayer() {
-  const { current, isPlaying, isUnavailable, toggle, next, prev, choose } = useMusic()
+  const { current, isPlaying, isAmbientFallback, toggle, next, prev, choose } = useMusic()
   const [open, setOpen] = useState(false)
 
   return (
@@ -42,10 +42,11 @@ export function MusicPlayer() {
                 </li>
               ))}
             </ul>
-            {isUnavailable && (
-              <p className="mt-2 px-1 font-sans text-[10px] leading-relaxed text-[var(--color-ink-soft)]">
-                Audio not connected yet — this song will play once a licensed file is
-                added.
+            {isPlaying && isAmbientFallback && (
+              <p className="mt-2 border-t border-black/5 px-1 pt-2 font-sans text-[10px] leading-relaxed text-[var(--color-ink-soft)]">
+                Playing an ambient placeholder for this mood — the licensed
+                recording hasn't been added yet. Drop it into{' '}
+                <code className="text-[9px]">/public/audio</code> to swap it in.
               </p>
             )}
           </motion.div>
@@ -63,9 +64,17 @@ export function MusicPlayer() {
         <button
           aria-label={isPlaying ? 'pause' : 'play'}
           onClick={toggle}
-          className="grid h-9 w-9 place-items-center rounded-full bg-[var(--color-ink)] text-[var(--color-paper)]"
+          className="relative grid h-9 w-9 place-items-center rounded-full bg-[var(--color-ink)] text-[var(--color-paper)]"
         >
-          {isPlaying ? <PauseIcon /> : <PlayIcon />}
+          {isPlaying && (
+            <motion.span
+              aria-hidden
+              className="absolute inset-0 rounded-full bg-[var(--color-clay)]/50"
+              animate={{ scale: [1, 1.55, 1], opacity: [0.5, 0, 0.5] }}
+              transition={{ duration: 2.2, repeat: Infinity, ease: 'easeInOut' }}
+            />
+          )}
+          <span className="relative">{isPlaying ? <PauseIcon /> : <PlayIcon />}</span>
         </button>
         <button
           aria-label="next song"
@@ -82,7 +91,7 @@ export function MusicPlayer() {
             {current.title}
           </span>
           <span className="truncate font-sans text-[10px] text-[var(--color-ink-soft)]">
-            {current.artist}
+            {isPlaying && isAmbientFallback ? 'ambient placeholder' : current.artist}
           </span>
         </button>
       </div>
